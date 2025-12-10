@@ -14,6 +14,14 @@
 bash <(curl -Ls https://raw.githubusercontent.com/YukiKras/vless-scripts/refs/heads/main/hysteria-install.sh)
 ```
 
+## Аргументы
+
+Установить/переустановить с другим SNI
+
+``` bash
+bash <(curl -Ls https://raw.githubusercontent.com/YukiKras/vless-scripts/refs/heads/main/hysteria-install.sh) --custom-sni=example.com
+```
+
 # Полная авто-установка Marzban панели (БЕТА)
 
 Устанавливает и настраивает Marzban полностью автоматически, находится на разработке и может выполняться с ошибками

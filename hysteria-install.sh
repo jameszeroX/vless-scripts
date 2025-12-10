@@ -24,6 +24,24 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+CUSTOM_SNI=""
+for arg in "$@"; do
+    case $arg in
+        --custom-sni=*)
+            CUSTOM_SNI="${arg#*=}"
+            shift
+            ;;
+        --help)
+            echo "Использование: $0 [--custom-sni=example.com]"
+            echo ""
+            echo "Опции:"
+            echo "  --custom-sni=HOSTNAME  Указать свой SNI хост (по умолчанию: web.max.ru)"
+            echo "  --help                 Показать эту справку"
+            exit 0
+            ;;
+    esac
+done
+
 REGEX=("debian" "ubuntu" "centos|red hat|kernel|oracle linux|alma|rocky" "'amazon linux'" "fedora" "alpine")
 RELEASE=("Debian" "Ubuntu" "CentOS" "CentOS" "Fedora" "Alpine")
 PACKAGE_UPDATE=("apt-get update" "apt-get update" "yum -y update" "yum -y update" "yum -y update" "apk update -f")
@@ -292,7 +310,7 @@ install_server_core() {
 
       rm -f "$_tmpfile"
 
-      mkdir /etc/hysteria
+      mkdir -p /etc/hysteria
     }
 
     perform_install_hysteria_systemd() {
@@ -338,11 +356,17 @@ EOF
 configure_hysteria() {
     yellow "Настройка сервера Hysteria2..."
     
-    mkdir -p /etc/hierra
+    if [[ -n "$CUSTOM_SNI" ]]; then
+        local sni_host="$CUSTOM_SNI"
+        yellow "Используется кастомный SNI: $sni_host"
+    else
+        local sni_host="web.max.ru"
+    fi
     
-    local sni_host="web.max.ru"
-    local masquerade_url="web.max.ru"
+    local masquerade_url="$sni_host"
     local port="443"
+    
+    mkdir -p /etc/hysteria
     
     local auth_pwd=$(date +%s%N | md5sum | cut -c 1-16)
     local obfs_pwd=$(date +%s%N | md5sum | cut -c 1-16)
@@ -396,6 +420,10 @@ EOF
     yellow "Пароль обфускации: $obfs_pwd"
     yellow "Маскировка: https://$masquerade_url"
     echo
+    
+    if [[ -n "$CUSTOM_SNI" ]]; then
+        green "Использован кастомный SNI: $CUSTOM_SNI"
+    fi
 }
 
 start_service() {
@@ -473,8 +501,8 @@ main() {
     yellow "Hysteria2 ключ:"
     cat /root/hysteria2.txt
     echo
-    plain "Инструкции по настройке VPN приложений:"
-    plain "https://github.com/YukiKras/wiki/blob/main/nastroikavpn.md"
+    echo "Инструкции по настройке VPN приложений:"
+    echo "https://github.com/YukiKras/wiki/blob/main/nastroikavpn.md"
 }
 
 main
