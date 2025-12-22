@@ -1,5 +1,25 @@
 #!/bin/bash
 
+INSTALL_WARP=false
+EXTENDED_SETUP=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --warp)
+            INSTALL_WARP=true
+            shift
+            ;;
+        --extend)
+            EXTENDED_SETUP=true
+            shift
+            ;;
+        *)
+            echo "Неизвестный аргумент: $1" >&3
+            exit 1
+            ;;
+    esac
+done
+
 # Проверяем наличие команды x-ui
 if command -v x-ui &> /dev/null; then
     echo "Обнаружена установленная панель x-ui."
@@ -34,7 +54,7 @@ yellow='\033[0;33m'
 plain='\033[0m'
 
 # === Порт панели: по умолчанию 8080, а при аргументе extend — ручной выбор ===
-if [[ "$1" == "--extend" ]]; then
+if [[ "$EXTENDED_SETUP" == true ]]; then
     read -rp $'\033[0;33mВведите порт для панели (Enter для 8080): \033[0m' USER_PORT
     PORT=${USER_PORT:-8080}
 
@@ -123,8 +143,17 @@ esac
 
 # Установка x-ui
 cd /usr/local/ || exit 1
-#tag_version=$(curl -Ls "https://api.github.com/repos/MHSanaei/3x-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-wget -q -O x-ui-linux-${ARCH}.tar.gz https://github.com/MHSanaei/3x-ui/releases/download/v2.6.7/x-ui-linux-amd64.tar.gz
+URL1="https://github.com/MHSanaei/3x-ui/releases/download/v2.6.7/x-ui-linux-amd64.tar.gz"
+URL2="https://files.yukikras.net/3x-ui/v2.6.7.x-ui-linux-amd64.tar.gz"
+FILE="x-ui-linux-${ARCH}.tar.gz"
+
+if ! wget -q -O "$FILE" "$URL1"; then
+    echo "Не удалось скачать с GitHub, пробую зеркало..."
+    wget -q -O "$FILE" "$URL2" || {
+        echo "Ошибка: не удалось скачать файл ни с одного источника"
+        exit 1
+    }
+fi
 
 systemctl stop x-ui 2>/dev/null
 rm -rf /usr/local/x-ui/
@@ -136,7 +165,17 @@ chmod +x x-ui
 [[ "$ARCH" == armv* ]] && mv bin/xray-linux-${ARCH} bin/xray-linux-arm && chmod +x bin/xray-linux-arm
 chmod +x x-ui bin/xray-linux-${ARCH}
 cp -f x-ui.service /etc/systemd/system/
-wget -q -O /usr/bin/x-ui https://raw.githubusercontent.com/MHSanaei/3x-ui/main/x-ui.sh
+URL1="https://raw.githubusercontent.com/MHSanaei/3x-ui/main/x-ui.sh"
+URL2="https://files.yukikras.net/3x-ui/x-ui.sh"
+FILE="/usr/bin/x-ui"
+
+if ! wget -q -O "$FILE" "$URL1"; then
+    echo "Не удалось скачать с GitHub, пробую зеркало..."
+    wget -q -O "$FILE" "$URL2" || {
+        echo "Ошибка: не удалось скачать файл ни с одного источника"
+        exit 1
+    }
+fi
 chmod +x /usr/local/x-ui/x-ui.sh /usr/bin/x-ui
 
 # Настройка
@@ -247,8 +286,6 @@ ADD_RESULT=$(curl -s -b "$COOKIE_JAR" -X POST "http://127.0.0.1:${PORT}/${WEBPAT
       sniffing: ($sniffing | tostring)
     }')"
 )
-# Очистка временных cookie
-rm -f "$COOKIE_JAR"
 
 # Проверка
 if echo "$ADD_RESULT" | grep -q '"success":true'; then
@@ -257,9 +294,168 @@ if echo "$ADD_RESULT" | grep -q '"success":true'; then
     # Перезапуск x-ui
     systemctl restart x-ui >>"$LOG_FILE" 2>&1
 
+    if [[ "$INSTALL_WARP" == true ]]; then
+        echo -e "${yellow}Установка WARP...${plain}" >&3
+        wget -N https://gitlab.com/fscarmen/warp/-/raw/main/menu.sh -O /tmp/warp_menu.sh >/dev/null 2>&1
+        if [[ $? -eq 0 ]]; then
+            echo -e "${green}Скрипт WARP загружен, начинаем установку...${plain}" >&3
+            echo -e "1\n" | bash /tmp/warp_menu.sh c >/dev/null 2>&1
+            if [[ $? -eq 0 ]]; then
+                echo -e "${green}WARP успешно установлен${plain}" >&3
+                
+                echo -e "${yellow}Настройка WARP в 3x-ui панели...${plain}" >&3
+                
+                XRAY_CONFIG='{
+      "log": {
+        "access": "none",
+        "dnsLog": false,
+        "error": "",
+        "loglevel": "warning",
+        "maskAddress": ""
+      },
+      "api": {
+        "tag": "api",
+        "services": [
+          "HandlerService",
+          "LoggerService",
+          "StatsService"
+        ]
+      },
+      "inbounds": [
+        {
+          "tag": "api",
+          "listen": "127.0.0.1",
+          "port": 62789,
+          "protocol": "dokodemo-door",
+          "settings": {
+            "address": "127.0.0.1"
+          }
+        }
+      ],
+      "outbounds": [
+        {
+          "tag": "direct",
+          "protocol": "freedom",
+          "settings": {
+            "domainStrategy": "AsIs",
+            "redirect": "",
+            "noises": []
+          }
+        },
+        {
+          "tag": "blocked",
+          "protocol": "blackhole",
+          "settings": {}
+        },
+        {
+          "tag": "WARP",
+          "protocol": "socks",
+          "settings": {
+            "servers": [
+              {
+                "address": "127.0.0.1",
+                "port": 40000,
+                "users": []
+              }
+            ]
+          }
+        }
+      ],
+      "policy": {
+        "levels": {
+          "0": {
+            "statsUserDownlink": true,
+            "statsUserUplink": true
+          }
+        },
+        "system": {
+          "statsInboundDownlink": true,
+          "statsInboundUplink": true,
+          "statsOutboundDownlink": false,
+          "statsOutboundUplink": false
+        }
+      },
+      "routing": {
+        "domainStrategy": "AsIs",
+        "rules": [
+          {
+            "type": "field",
+            "inboundTag": [
+              "api"
+            ],
+            "outboundTag": "api"
+          },
+          {
+            "type": "field",
+            "outboundTag": "blocked",
+            "ip": [
+              "geoip:private"
+            ]
+          },
+          {
+            "type": "field",
+            "outboundTag": "blocked",
+            "protocol": [
+              "bittorrent"
+            ]
+          },
+          {
+            "type": "field",
+            "inboundTag": [
+              "inbound-443"
+            ],
+            "outboundTag": "WARP"
+          }
+        ]
+      },
+      "stats": {},
+      "metrics": {
+        "tag": "metrics_out",
+        "listen": "127.0.0.1:11111"
+      }
+    }'
+                
+                XRAY_CONFIG_ENCODED=$(echo "$XRAY_CONFIG" | jq -sRr @uri)
+                
+                echo -e "${yellow}Отправка конфигурации Xray...${plain}" >&3
+                UPDATE_RESPONSE=$(curl -s -b "$COOKIE_JAR" -X POST "http://127.0.0.1:${PORT}/${WEBPATH}/panel/xray/update" \
+                  -H "Content-Type: application/x-www-form-urlencoded" \
+                  --data-raw "xraySetting=${XRAY_CONFIG_ENCODED}")
+                
+                if echo "$UPDATE_RESPONSE" | grep -q '"success":true'; then
+                    echo -e "${green}Конфигурация Xray успешно обновлена${plain}" >&3
+                    
+                    echo -e "${yellow}Перезапуск Xray...${plain}" >&3
+                    RESTART_RESPONSE=$(curl -s -b "$COOKIE_JAR" -X POST "http://127.0.0.1:${PORT}/${WEBPATH}/server/restartXrayService")
+                    
+                    if echo "$RESTART_RESPONSE" | grep -q '"success":true'; then
+                        echo -e "${green}Xray успешно перезапущен с настройками WARP${plain}" >&3
+                        
+                        echo -e "\n${green}VLESS Reality с поддержкой WARP успешно настроен!${plain}" >&3
+                        echo -e "${yellow}Примечание: Весь трафик через Reality инбаунд теперь будет идти через WARP${plain}" >&3
+                    else
+                        echo -e "${red}Ошибка при перезапуске Xray:${plain}" >&3
+                        echo "$RESTART_RESPONSE" >&3
+                    fi
+                else
+                    echo -e "${red}Ошибка при обновлении конфигурации Xray:${plain}" >&3
+                    echo "$UPDATE_RESPONSE" >&3
+                fi
+            else
+                echo -e "${red}Ошибка при установке WARP${plain}" >&3
+            fi
+            rm -f /tmp/warp_menu.sh
+        else
+            echo -e "${red}Не удалось загрузить скрипт WARP${plain}" >&3
+        fi
+    fi
+    
+    rm -f "$COOKIE_JAR"
+
     SERVER_IP=$(curl -s --max-time 3 https://api.ipify.org || curl -s --max-time 3 https://4.ident.me)
     VLESS_LINK="vless://${UUID}@${SERVER_IP}:443?type=tcp&security=reality&encryption=none&flow=xtls-rprx-vision&sni=${BEST_DOMAIN}&fp=chrome&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&spx=%2F#${EMAIL}"
 
+    echo -e ""
     echo -e "\n\033[0;32mVLESS Reality успешно создан!\033[0m" >&3
     echo -e "\033[1;36mВаш VPN ключ, его можно использовать сразу на нескольких устройствах:\033[0m" >&3
     echo -e ""
@@ -294,7 +490,7 @@ fi
 # === Общая финальная информация (всегда выводится) ===
 SERVER_IP=${SERVER_IP:-$(curl -s --max-time 3 https://api.ipify.org || curl -s --max-time 3 https://4.ident.me)}
 
-echo -e "\n\033[1;32mПанель управления 3X-UI (https://github.com/MHSanaei/3x-ui) доступна по следующим данным:\033[0m" >&3
+echo -e "\n\033[1;32mПанель управления 3X-UI доступна по следующим данным:\033[0m" >&3
 echo -e "Адрес панели: \033[1;36mhttp://${SERVER_IP}:${PORT}/${WEBPATH}\033[0m" >&3
 echo -e "Логин:        \033[1;33m${USERNAME}\033[0m" >&3
 echo -e "Пароль:       \033[1;33m${PASSWORD}\033[0m" >&3
@@ -309,7 +505,7 @@ echo -e "\033[0;36mcat /root/3x-ui.txt\033[0m" >&3
 echo -e "" >&3
 
 {
-  echo "Панель управления 3X-UI (https://github.com/MHSanaei/3x-ui) доступна по следующим данным:"
+  echo "Панель управления 3X-UI доступна по следующим данным:"
   echo "Адрес панели - http://${SERVER_IP}:${PORT}/${WEBPATH}"
   echo "Логин:         ${USERNAME}"
   echo "Пароль:        ${PASSWORD}"

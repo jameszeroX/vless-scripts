@@ -46,10 +46,18 @@ bash <(curl -Ls https://raw.githubusercontent.com/YukiKras/vless-scripts/refs/he
 bash <(curl -Ls https://raw.githubusercontent.com/YukiKras/vless-scripts/refs/heads/main/3xinstall.sh)
 ```
 
+## Аргументы
+
 Расширенную, с возможностью предустановить свои настройки и установки SelfSNI:
 
 ``` bash
 bash <(curl -Ls https://raw.githubusercontent.com/YukiKras/vless-scripts/refs/heads/main/3xinstall.sh) --extend
+```
+
+С автоматической настройкой всего трафика в WARP
+
+``` bash
+bash <(curl -Ls https://raw.githubusercontent.com/YukiKras/vless-scripts/refs/heads/main/3xinstall.sh) --warp
 ```
 
 # Установка SNI сайта
