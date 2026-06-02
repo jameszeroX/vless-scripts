@@ -84,6 +84,20 @@ bash <(curl -Ls https://raw.githubusercontent.com/YukiKras/vless-scripts/refs/he
 bash <(curl -Ls https://raw.githubusercontent.com/YukiKras/vless-scripts/refs/heads/main/fakesite.sh) --without-80
 ```
 
+### Настройка с самоподписным сертификатом
+
+``` bash
+bash <(curl -Ls https://raw.githubusercontent.com/YukiKras/vless-scripts/refs/heads/main/fakesite.sh) --self-signed
+```
+
+### Настройка с рандомносгенерированным доменом
+
+``` bash
+bash <(curl -Ls https://raw.githubusercontent.com/YukiKras/vless-scripts/refs/heads/main/fakesite.sh) --self-signed --rand-dns
+```
+
+Данный аргумент возможно использовать только с --self-signed
+
 # Возвращение https в Marzban
 
 Возвращает возможность пользоваться Marzban из вне как раньше без SSH туннеля, и позволяет опционаольно установить заглушку логина ISPManager.
